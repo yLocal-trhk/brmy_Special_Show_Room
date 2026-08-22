@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ブレイクマイケース Special Show Room グッズ計算</title>
+  <!-- html2canvas ライブラリの読み込み -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    :root {
+      --primary: #1e293b;
+      --accent: #e11d48;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --border: #e2e8f0;
+      --text: #0f172a;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 15px;
+      padding-bottom: 160px;
+    }
+    h1 { text-align: center; font-size: 1.3rem; color: var(--primary); margin-bottom: 15px; }
+    
+    .section-title {
+      background: var(--primary); color: white; padding: 8px 12px;
+      border-radius: 4px; margin-top: 20px; font-size: 0.95rem; font-weight: bold;
+    }
+    
+    .item-card {
+      background: var(--card-bg); border: 1px solid var(--border);
+      padding: 10px; border-radius: 6px; margin-top: 8px;
+    }
+    .item-main {
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .item-info { flex: 1; }
+    .item-name { font-weight: bold; font-size: 0.85rem; }
+    .item-price { font-size: 0.8rem; color: #64748b; }
+    .counter { display: flex; align-items: center; gap: 6px; }
+    .counter button {
+      width: 28px; height: 28px; border: 1px solid #cbd5e1;
+      background: #fff; border-radius: 4px; font-weight: bold; cursor: pointer;
+    }
+    .counter input {
+      width: 36px; text-align: center; border: 1px solid #cbd5e1;
+      border-radius: 4px; padding: 4px;
+    }
+    
+    /* 選択トグル & エリア */
+    .char-toggle-btn {
+      margin-top: 5px; background: #f1f5f9; border: 1px solid var(--primary);
+      color: var(--primary); font-size: 0.75rem; padding: 4px 8px; border-radius: 4px;
+      cursor: pointer; font-weight: bold;
+    }
+    .char-list {
+      display: none; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 6px; margin-top: 10px; padding-top: 8px; border-top: 1px dashed #cbd5e1;
+    }
+    .char-list.open { display: grid; }
+    .char-item {
+      background: #f8fafc; padding: 6px; border-radius: 4px; border: 1px solid #e2e8f0;
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .char-name-label { font-size: 0.75rem; font-weight: bold; }
+
+    .footer-bar {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: #0f172a; color: white; padding: 10px 20px 12px 20px;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+      z-index: 1000;
+    }
+    .footer-row { display: flex; justify-content: space-between; align-items: center; }
+    .total-price-text { font-size: 1.2rem; font-weight: bold; }
+    .bonus-box {
+      margin-top: 6px; padding-top: 6px; border-top: 1px solid #334155;
+      display: flex; flex-direction: column; gap: 2px; font-size: 0.8rem; color: #fde047;
+    }
+    .next-bonus { font-size: 0.75rem; color: #94a3b8; }
+
+    /* 画像出力ボタン */
+    .download-btn {
+      background: var(--accent); color: white; border: none; padding: 8px 14px;
+      font-size: 0.8rem; font-weight: bold; border-radius: 20px; cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    /* 画像化用のサマリーカード */
+    #summary-card {
+      display: none; width: 500px; background: #ffffff; padding: 20px;
+      border-radius: 12px; border: 2px solid #1e293b;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #0f172a; position: absolute; top: -9999px; left: -9999px;
+    }
+    #summary-card h2 {
+      margin: 0 0 10px 0; font-size: 1.1rem; color: #1e293b;
+      text-align: center; border-bottom: 2px dashed #1e293b; padding-bottom: 8px;
+    }
+    .summary-group-hdr {
+      background: #1e293b; color: #fff; padding: 4px 8px; font-size: 0.85rem;
+      font-weight: bold; margin-top: 10px; border-radius: 3px;
+    }
+    .summary-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+    .summary-table td { padding: 5px 6px; font-size: 0.8rem; border-bottom: 1px dashed #eee; }
+    .summary-table td.qty, .summary-table td.subtotal { text-align: right; }
+    
+    .summary-total-box {
+      background: #0f172a; color: #fff; padding: 12px 15px; border-radius: 8px; margin-top: 15px;
+    }
+    .summary-total-row { display: flex; justify-content: space-between; font-size: 1.1rem; font-weight: bold; margin-bottom: 5px; }
+    .summary-bonus-row { display: flex; justify-content: space-between; font-size: 0.85rem; color: #fde047; border-top: 1px solid #334155; padding-top: 5px; }
+
+    /* 作成者情報エリア */
+    .creator {
+      margin-top: 30px;
+      padding: 12px 15px;
+      background: #fff;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-size: 0.85rem;
+      color: #555;
+      display: flex;
+      flex-direction: row;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+    .creator-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: bold;
+    }
+    .creator-link:hover { text-decoration: underline; }
+    .creator svg { width: 14px; height: 14px; fill: currentColor; }
+    .home-back { margin-top: 0; }
+    .home-link { color: #666; text-decoration: none; font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+
+  </style>
+</head>
+<body>
+
+  <h1>『ブレイクマイケース』Special Show Room<br>グッズ購入シミュレーター</h1>
+
+  <div class="section-title">【オープン／キャラ別：1人2種】</div>
+  <div id="char-2type-items"></div>
+
+  <div class="section-title">【オープン／キャラ別】</div>
+  <div id="char-1type-items"></div>
+
+  <div class="section-title">【オープン／所属別】</div>
+  <div id="dept-items"></div>
+
+  <div class="section-title">【トレーディング】</div>
+  <div id="trade-items"></div>
+
+  <!-- 画像化用のサマリー要素 -->
+  <div id="summary-card">
+    <h2>『ブレイクマイケース』Special Show Room 購入リスト</h2>
+    <div id="summary-content"></div>
+    <div class="summary-total-box">
+      <div class="summary-total-row">
+        <span>合計金額</span>
+        <span id="summary-total-price">¥0</span>
+      </div>
+      <div class="summary-bonus-row">
+        <span>🎁 特典獲得数</span>
+        <span><strong id="summary-bonus-count">0</strong> 枚</span>
+      </div>
+      <div class="summary-bonus-row">
+        <span>🎲 抽選回数</span>
+        <span><strong id="summary-lottery-count">0</strong> 回</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- クリエイター情報エリア -->
+  <div class="creator">
+    <a 
+      href="https://twitter.com/intent/tweet?text=ドラマト11thとスタマイ10thアニバストアのグッズ購入シミュレーターです！%0Ahttps://ylocal-trhk.github.io/drmt11th_stmy10th/" 
+      target="_blank" 
+      rel="noopener" 
+      class="creator-link"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M18.244 2.25h3.308l-7.227 8.26L22.5 21.75h-6.594l-5.16-6.726-5.886 6.726H1.548l7.73-8.835L1.5 2.25h6.762l4.662 6.12 5.32-6.12Zm-1.16 17.52h1.833L7.62 4.125H5.655l11.43 15.645Z"/>
+      </svg>
+      <span>シェア</span>
+    </a>
+
+    <div>
+      作成者：
+      <a href="https://x.com/yLocal_trhk" target="_blank" rel="noopener" class="creator-link">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M18.244 2.25h3.308l-7.227 8.26L22.5 21.75h-6.594l-5.16-6.726-5.886 6.726H1.548l7.73-8.835L1.5 2.25h6.762l4.662 6.12 5.32-6.12Zm-1.16 17.52h1.833L7.62 4.125H5.655l11.43 15.645Z"/>
+        </svg>
+        <span>@yLocal_trhk</span>
+      </a>
+    </div>
+
+    <div class="home-back">
+      <a href="https://ylocal-trhk.github.io/HOME/" class="home-link">
+        ← HOMEに戻る
+      </a>
+    </div>
+  </div>
+
+  <!-- フッター -->
+  <div class="footer-bar">
+    <div class="footer-row">
+      <div>
+        <span style="font-size:0.75rem; color:#94a3b8;">合計金額</span><br>
+        <span id="total-price" class="total-price-text">¥0</span>
+      </div>
+      <button class="download-btn" onclick="generateImage()">📸 画像として保存</button>
+    </div>
+    <div class="bonus-box">
+      <div style="display: flex; justify-content: space-between;">
+        <span>🎁 特典: <strong id="bonus-count">0</strong> 枚 <span id="next-bonus" class="next-bonus">（あと ¥3,000）</span></span>
+        <span>🎲 抽選: <strong id="lottery-count">0</strong> 回</span>
+      </div>
+    </div>
+  </div>
+
+<script>
+// キャラクター・所属データ
+const charList = ["皇坂", "城瀬", "須王", "綾戸", "宇京", "樋宮", "環野", "槻本", "壱川", "隠岐谷", "節見", "御門", "新開", "相沢", "在間", "祠堂", "立科", "恩田", "新名", "神家", "麻波"];
+const deptList = ["本部", "交際部", "管理部", "強行部", "交渉部", "特務部"];
+
+// 商品データ
+const itemsData = {
+  char2Type: [
+    { name: "アクリルスタンド", price: 1650 },
+    { name: "ダイカットオーロラステッカー", price: 660 }
+  ],
+  char1Type: [
+    { name: "A4ファイルケース", price: 2200 },
+    { name: "mini カードケースフォンタブ", price: 1650 }
+  ],
+  dept: [
+    { name: "ショコラクッキー", price: 1080 }
+  ],
+  trade: [
+    { name: "缶バッジ【本部・交際部・管理部】", price: 440 },
+    { name: "缶バッジ【強行部・交渉部・特務部】", price: 440 },
+    { name: "フォト風カード【本部・交際部・管理部】", price: 440 },
+    { name: "フォト風カード【強行部・交渉部・特務部】", price: 440 },
+    { name: "ミニアクス【本部・交際部・管理部】", price: 880 },
+    { name: "ミニアクス【強行部・交渉部・特務部】", price: 880 },
+    { name: "mini クリアカード（2枚入り）【本部・交際部・管理部】", price: 550 },
+    { name: "mini クリアカード（2枚入り）【強行部・交渉部・特務部】", price: 550 }
+  ]
+};
+
+function createItemCard(item, selectType = 'none', categoryKey = "", index = 0) {
+  let subListHtml = '';
+  let toggleBtnText = '';
+
+  if (selectType === 'char2') {
+    toggleBtnText = 'キャラ別に選択（1人2種） 👤';
+    // 1人2種用の展開（例：皇坂A, 皇坂B）
+    let options = [];
+    charList.forEach(c => {
+      options.push(`${c} (Type A)`, `${c} (Type B)`);
+    });
+    subListHtml = options.map(opt => `
+      <div class="char-item">
+        <span class="char-name-label">${opt}</span>
+        <div class="counter">
+          <button onclick="updateQty(this, -1)">-</button>
+          <input type="number" value="0" min="0" data-category="${categoryKey}" data-name="${item.name}" data-sub="${opt}" data-price="${item.price}" onchange="calculateTotal()">
+          <button onclick="updateQty(this, 1)">+</button>
+        </div>
+      </div>
+    `).join('');
+  } else if (selectType === 'char1') {
+    toggleBtnText = 'キャラ別に選択 👤';
+    subListHtml = charList.map(c => `
+      <div class="char-item">
+        <span class="char-name-label">${c}</span>
+        <div class="counter">
+          <button onclick="updateQty(this, -1)">-</button>
+          <input type="number" value="0" min="0" data-category="${categoryKey}" data-name="${item.name}" data-sub="${c}" data-price="${item.price}" onchange="calculateTotal()">
+          <button onclick="updateQty(this, 1)">+</button>
+        </div>
+      </div>
+    `).join('');
+  } else if (selectType === 'dept') {
+    toggleBtnText = '所属別に選択 🏢';
+    subListHtml = deptList.map(d => `
+      <div class="char-item">
+        <span class="char-name-label">${d}</span>
+        <div class="counter">
+          <button onclick="updateQty(this, -1)">-</button>
+          <input type="number" value="0" min="0" data-category="${categoryKey}" data-name="${item.name}" data-sub="${d}" data-price="${item.price}" onchange="calculateTotal()">
+          <button onclick="updateQty(this, 1)">+</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  const listId = `sub-list-${categoryKey}-${index}`;
+
+  if (selectType !== 'none') {
+    return `
+      <div class="item-card">
+        <div class="item-main">
+          <div class="item-info">
+            <div class="item-name">${item.name}</div>
+            <div class="item-price">¥${item.price.toLocaleString()}</div>
+          </div>
+          <button class="char-toggle-btn" onclick="toggleSubList('${listId}')">${toggleBtnText}</button>
+        </div>
+        <div class="char-list" id="${listId}">
+          ${subListHtml}
+        </div>
+      </div>
+    `;
+  }
+
+  // 通常（トレーディング等）
+  return `
+    <div class="item-card">
+      <div class="item-main">
+        <div class="item-info">
+          <div class="item-name">${item.name}</div>
+          <div class="item-price">¥${item.price.toLocaleString()}</div>
+        </div>
+        <div class="counter">
+          <button onclick="updateQty(this, -1)">-</button>
+          <input type="number" value="0" min="0" data-category="${categoryKey}" data-name="${item.name}" data-price="${item.price}" onchange="calculateTotal()">
+          <button onclick="updateQty(this, 1)">+</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function toggleSubList(id) {
+  const el = document.getElementById(id);
+  el.classList.toggle('open');
+}
+
+function renderSection(elementId, items, selectType, categoryKey) {
+  const container = document.getElementById(elementId);
+  container.innerHTML = items.map((item, idx) => createItemCard(item, selectType, categoryKey, idx)).join('');
+}
+
+function renderAll() {
+  renderSection('char-2type-items', itemsData.char2Type, 'char2', 'オープン（キャラ別：2種）');
+  renderSection('char-1type-items', itemsData.char1Type, 'char1', 'オープン（キャラ別）');
+  renderSection('dept-items', itemsData.dept, 'dept', 'オープン（所属別）');
+  renderSection('trade-items', itemsData.trade, 'none', 'トレーディング');
+}
+
+function updateQty(btn, change) {
+  const input = btn.parentElement.querySelector('input');
+  let currentVal = parseInt(input.value) || 0;
+  currentVal = Math.max(0, currentVal + change);
+  input.value = currentVal;
+  calculateTotal();
+}
+
+function calculateTotal() {
+  let total = 0;
+  document.querySelectorAll('input[type="number"]').forEach(input => {
+    const qty = parseInt(input.value) || 0;
+    const price = parseInt(input.dataset.price) || 0;
+    total += qty * price;
+  });
+
+  document.getElementById('total-price').innerText = `¥${total.toLocaleString()}`;
+
+  // 特典：3000円ごとに1枚
+  const bonusUnit = 3000;
+  const bonusCount = Math.floor(total / bonusUnit);
+  const remainder = total % bonusUnit;
+  const needed = bonusUnit - remainder;
+
+  document.getElementById('bonus-count').innerText = bonusCount;
+  
+  if (total === 0) {
+    document.getElementById('next-bonus').innerText = `（あと ¥3,000）`;
+  } else if (remainder === 0) {
+    document.getElementById('next-bonus').innerText = `（達成！🎉）`;
+  } else {
+    document.getElementById('next-bonus').innerText = `（あと ¥${needed.toLocaleString()}）`;
+  }
+
+  // 抽選：3,000円以上で1回
+  const lotteryCount = total >= 3000 ? 1 : 0;
+  document.getElementById('lottery-count').innerText = lotteryCount;
+}
+
+function generateImage() {
+  let groupedItems = {};
+  let total = 0;
+
+  document.querySelectorAll('input[type="number"]').forEach(input => {
+    const qty = parseInt(input.value) || 0;
+    if (qty > 0) {
+      const category = input.dataset.category;
+      const name = input.dataset.name;
+      const subName = input.dataset.sub;
+      const price = parseInt(input.dataset.price) || 0;
+      const subtotal = qty * price;
+      total += subtotal;
+
+      const fullItemName = subName ? `${name} [${subName}]` : name;
+
+      if (!groupedItems[category]) groupedItems[category] = [];
+      groupedItems[category].push({ name: fullItemName, qty, subtotal });
+    }
+  });
+
+  if (Object.keys(groupedItems).length === 0) {
+    alert('商品が1つも選択されていません。');
+    return;
+  }
+
+  const summaryContent = document.getElementById('summary-content');
+  summaryContent.innerHTML = '';
+
+  for (const [category, items] of Object.entries(groupedItems)) {
+    let catHdr = document.createElement('div');
+    catHdr.className = 'summary-group-hdr';
+    catHdr.innerText = category;
+    summaryContent.appendChild(catHdr);
+
+    let table = document.createElement('table');
+    table.className = 'summary-table';
+    
+    let rowsHtml = items.map(item => `
+      <tr>
+        <td>${item.name}</td>
+        <td class="qty" style="width: 40px;">${item.qty}</td>
+        <td class="subtotal" style="width: 70px;">¥${item.subtotal.toLocaleString()}</td>
+      </tr>
+    `).join('');
+    
+    table.innerHTML = rowsHtml;
+    summaryContent.appendChild(table);
+  }
+
+  document.getElementById('summary-total-price').innerText = `¥${total.toLocaleString()}`;
+  document.getElementById('summary-bonus-count').innerText = Math.floor(total / 3000);
+  document.getElementById('summary-lottery-count').innerText = total >= 3000 ? 1 : 0;
+
+  const summaryCard = document.getElementById('summary-card');
+  summaryCard.style.display = 'block';
+
+  html2canvas(summaryCard, { scale: 2 }).then(canvas => {
+    summaryCard.style.display = 'none';
+
+    const link = document.createElement('a');
+    link.download = 'brecase_order_summary.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  }).catch(err => {
+    summaryCard.style.display = 'none';
+    alert('画像の作成に失敗しました。');
+  });
+}
+
+renderAll();
+</script>
+</body>
+</html>
