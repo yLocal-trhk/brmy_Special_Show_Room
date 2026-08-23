@@ -74,6 +74,7 @@
       z-index: 1000;
     }
     .footer-row { display: flex; justify-content: space-between; align-items: center; }
+    .footer-btns { display: flex; gap: 8px; align-items: center; }
     .total-price-text { font-size: 1.2rem; font-weight: bold; }
     .bonus-box {
       margin-top: 6px; padding-top: 6px; border-top: 1px solid #334155;
@@ -81,11 +82,15 @@
     }
     .next-bonus { font-size: 0.75rem; color: #94a3b8; }
 
-    /* 画像出力ボタン */
+    /* 各種ボタン */
     .download-btn {
       background: var(--accent); color: white; border: none; padding: 8px 14px;
       font-size: 0.8rem; font-weight: bold; border-radius: 20px; cursor: pointer;
       box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .reset-btn {
+      background: #475569; color: white; border: none; padding: 8px 12px;
+      font-size: 0.8rem; font-weight: bold; border-radius: 20px; cursor: pointer;
     }
 
     /* 画像化用のサマリーカード */
@@ -141,10 +146,6 @@
     .creator svg { width: 14px; height: 14px; fill: currentColor; }
     .home-back { margin-top: 0; }
     .home-link { color: #666; text-decoration: none; font-size: 0.8rem; }
-  </style>
-</head>
-<body>
-
   </style>
 </head>
 <body>
@@ -221,7 +222,10 @@
         <span style="font-size:0.75rem; color:#94a3b8;">合計金額</span><br>
         <span id="total-price" class="total-price-text">¥0</span>
       </div>
-      <button class="download-btn" onclick="generateImage()">📸 画像として保存</button>
+      <div class="footer-btns">
+        <button class="reset-btn" onclick="resetAll()">🗑️ リセット</button>
+        <button class="download-btn" onclick="generateImage()">📸 画像として保存</button>
+      </div>
     </div>
     <div class="bonus-box">
       <div style="display: flex; justify-content: space-between;">
@@ -232,6 +236,9 @@
   </div>
 
 <script>
+// ★このサイト専用の保存キー名
+const STORAGE_KEY = 'brmy_showroom_cart_selection';
+
 // キャラクター・所属データ
 const charList = ["皇坂", "城瀬", "須王", "綾戸", "宇京", "樋宮", "環野", "槻本", "壱川", "隠岐谷", "節見", "御門", "新開", "相沢", "在間", "祠堂", "立科", "恩田", "新名", "神家", "麻波"];
 const deptList = ["本部", "交際部", "管理部", "強行部", "交渉部", "特務部"];
@@ -252,12 +259,12 @@ const itemsData = {
   trade: [
     { name: "缶バッジ【本部・交際部・管理部】", price: 440 },
     { name: "缶バッジ【強行部・交渉部・特務部】", price: 440 },
-    { name: "フォト風カード【本部・交際部・管理部】", price: 440 },
-    { name: "フォト風カード【強行部・交渉部・特務部】", price: 440 },
+    { name: "フォト風カード【本部・交際部・管理部】2枚入り", price: 440 },
+    { name: "フォト風カード【強行部・交渉部・特務部】2枚入り", price: 440 },
     { name: "ミニアクスタ【本部・交際部・管理部】", price: 880 },
     { name: "ミニアクスタ【強行部・交渉部・特務部】", price: 880 },
-    { name: "mini クリアカード（2枚入り）【本部・交際部・管理部】", price: 550 },
-    { name: "mini クリアカード（2枚入り）【強行部・交渉部・特務部】", price: 550 }
+    { name: "mini クリアカード【本部・交際部・管理部】2枚入り", price: 550 },
+    { name: "mini クリアカード【強行部・交渉部・特務部】2枚入り", price: 550 }
   ]
 };
 
@@ -267,7 +274,6 @@ function createItemCard(item, selectType = 'none', categoryKey = "", index = 0) 
 
   if (selectType === 'char2') {
     toggleBtnText = 'キャラ別に選択（1人2種） 👤';
-    // 1人2種用の展開（例：皇坂A, 皇坂B）
     let options = [];
     charList.forEach(c => {
       options.push(`${c} (Type A)`, `${c} (Type B)`);
@@ -327,7 +333,6 @@ function createItemCard(item, selectType = 'none', categoryKey = "", index = 0) 
     `;
   }
 
-  // 通常（トレーディング等）
   return `
     <div class="item-card">
       <div class="item-main">
@@ -370,6 +375,72 @@ function updateQty(btn, change) {
   calculateTotal();
 }
 
+/* --- 自動保存機能 --- */
+function saveSelections() {
+  const data = {};
+  document.querySelectorAll('input[type="number"]').forEach(input => {
+    const category = input.dataset.category || '';
+    const name = input.dataset.name || '';
+    const sub = input.dataset.sub || '';
+    const val = parseInt(input.value) || 0;
+    
+    const key = `${category}_${name}_${sub}`;
+    if (val > 0) {
+      data[key] = val;
+    }
+  });
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+/* --- 自動復元機能 --- */
+function loadSelections() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (!saved) return;
+  
+  try {
+    const data = JSON.parse(saved);
+    document.querySelectorAll('input[type="number"]').forEach(input => {
+      const category = input.dataset.category || '';
+      const name = input.dataset.name || '';
+      const sub = input.dataset.sub || '';
+      const key = `${category}_${name}_${sub}`;
+      
+      if (data[key] !== undefined) {
+        input.value = data[key];
+        if (data[key] > 0) {
+          const charListEl = input.closest('.char-list');
+          if (charListEl) {
+            charListEl.classList.add('open');
+          }
+        }
+      }
+    });
+  } catch(e) {
+    console.error("復元エラー:", e);
+  }
+}
+
+/* --- 一括リセット機能 --- */
+function resetAll() {
+  if (!confirm('選択した内容をすべてクリア（0にリセット）しますか？')) {
+    return;
+  }
+  
+  // 入力欄をすべて0にする
+  document.querySelectorAll('input[type="number"]').forEach(input => {
+    input.value = 0;
+  });
+  
+  // 開いているキャラアコーディオンをすべて閉じる
+  document.querySelectorAll('.char-list.open').forEach(el => {
+    el.classList.remove('open');
+  });
+  
+  // ローカルストレージもクリアして再計算
+  localStorage.removeItem(STORAGE_KEY);
+  calculateTotal();
+}
+
 function calculateTotal() {
   let total = 0;
   document.querySelectorAll('input[type="number"]').forEach(input => {
@@ -380,7 +451,6 @@ function calculateTotal() {
 
   document.getElementById('total-price').innerText = `¥${total.toLocaleString()}`;
 
-  // 特典：3000円ごとに1枚
   const bonusUnit = 3000;
   const bonusCount = Math.floor(total / bonusUnit);
   const remainder = total % bonusUnit;
@@ -396,9 +466,10 @@ function calculateTotal() {
     document.getElementById('next-bonus').innerText = `（あと ¥${needed.toLocaleString()}）`;
   }
 
-  // 抽選：3,000円以上で1回
   const lotteryCount = total >= 3000 ? 1 : 0;
   document.getElementById('lottery-count').innerText = lotteryCount;
+
+  saveSelections();
 }
 
 function generateImage() {
@@ -472,6 +543,8 @@ function generateImage() {
 }
 
 renderAll();
+loadSelections();
+calculateTotal();
 </script>
 </body>
 </html>
