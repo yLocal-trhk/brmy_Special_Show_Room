@@ -82,6 +82,60 @@
     }
     .next-bonus { font-size: 0.75rem; color: #94a3b8; }
 
+    /* かごボタン */
+    .cart-btn {
+      background: #4caf50; color: white; border: none; padding: 8px 14px;
+      font-size: 0.8rem; font-weight: bold; border-radius: 20px; cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    /* モーダル背景 */
+    .modal-overlay {
+      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;
+    }
+    .modal-overlay.open { display: flex; }
+
+    /* モーダル本体 */
+    .modal-content {
+      background: #fff; width: 90%; max-width: 500px; max-height: 80vh;
+      border-radius: 12px; display: flex; flex-direction: column; overflow: hidden;
+    }
+    .modal-header {
+      background: var(--primary); color: white; padding: 12px 15px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .modal-header h2 { margin: 0; font-size: 1.1rem; }
+    .close-btn { background: none; border: none; color: white; font-size: 1.2rem; cursor: pointer; }
+
+    #cart-modal-body { padding: 15px; overflow-y: auto; flex: 1; }
+
+    /* かご内の各商品アイテム */
+    .cart-check-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px; border-bottom: 1px solid #eee; gap: 10px;
+    }
+    .cart-check-item.done {
+      background-color: #f0f0f0; opacity: 0.5;
+    }
+    .cart-check-item.done .cart-item-title {
+      text-decoration: line-through;
+    }
+    .cart-item-info { flex: 1; }
+    .cart-item-title { font-size: 0.9rem; font-weight: bold; }
+    .cart-item-sub { font-size: 0.8rem; color: #666; }
+
+    .cart-checkbox {
+      width: 22px; height: 22px; cursor: pointer;
+    }
+    .modal-footer {
+      padding: 10px; text-align: center; border-top: 1px solid #eee; background: #f9f9f9;
+    }
+    .close-modal-btn {
+      background: #666; color: white; border: none; padding: 8px 20px;
+      border-radius: 20px; font-weight: bold; cursor: pointer;
+    }
+
     /* 各種ボタン */
     .download-btn {
       background: var(--accent); color: white; border: none; padding: 8px 14px;
@@ -223,6 +277,7 @@
         <span id="total-price" class="total-price-text">¥0</span>
       </div>
       <div class="footer-btns">
+        <button class="cart-btn" onclick="openCartModal()">🛒 かご (<span id="cart-count">0</span>)</button>
         <button class="reset-btn" onclick="resetAll()">🗑️ リセット</button>
         <button class="download-btn" onclick="generateImage()">📸 画像として保存</button>
       </div>
@@ -235,9 +290,30 @@
     </div>
   </div>
 
+  <!-- 購入チェックリスト（ポップアップ） -->
+  <div id="cart-modal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>🛒 購入チェックリスト</h2>
+        <button class="close-btn" onclick="closeCartModal()">✕</button>
+      </div>
+      <div id="cart-modal-body">
+        <!-- 選択された商品だけがここに動的生成されます -->
+      </div>
+      <div class="modal-footer">
+        <button class="close-modal-btn" onclick="closeCartModal()">閉じる</button>
+      </div>
+    </div>
+  </div>
+
 <script>
 // ★このサイト専用の保存キー名
 const STORAGE_KEY = 'brmy_showroom_cart_selection';
+
+// 購入チェックリストのチェック状態
+let checkedItemKeys = new Set(
+  JSON.parse(localStorage.getItem('brmy_showroom_checked_keys') || '[]')
+);
 
 // キャラクター・所属データ
 const charList = ["皇坂", "城瀬", "須王", "綾戸", "宇京", "樋宮", "環野", "槻本", "壱川", "隠岐谷", "節見", "御門", "新開", "相沢", "在間", "祠堂", "立科", "恩田", "新名", "神家", "麻波"];
@@ -440,6 +516,11 @@ function resetAll() {
   
   // ローカルストレージもクリアして再計算
   localStorage.removeItem(STORAGE_KEY);
+
+  // 購入チェックリストのチェック状態もリセット
+  checkedItemKeys.clear();
+  localStorage.removeItem('brmy_showroom_checked_keys');
+
   calculateTotal();
 }
 
@@ -452,6 +533,13 @@ function calculateTotal() {
   });
 
   document.getElementById('total-price').innerText = `¥${total.toLocaleString()}`;
+
+  // かごの商品個数を更新
+  let cartCount = 0;
+  document.querySelectorAll('input[type="number"]').forEach(input => {
+    cartCount += parseInt(input.value) || 0;
+  });
+  document.getElementById('cart-count').innerText = cartCount;
 
   const bonusUnit = 3000;
   const bonusCount = Math.floor(total / bonusUnit);
@@ -472,6 +560,80 @@ function calculateTotal() {
   document.getElementById('lottery-count').innerText = lotteryCount;
 
   saveSelections();
+}
+
+
+function getItemKey(input) {
+  const category = input.dataset.category || '';
+  const name = input.dataset.name || '';
+  const sub = input.dataset.sub || '';
+  return `${category}_${name}_${sub}`;
+}
+
+/* --- 購入チェックリスト --- */
+function openCartModal() {
+  const modalBody = document.getElementById('cart-modal-body');
+  modalBody.innerHTML = '';
+
+  let hasItem = false;
+  let cartCount = 0;
+
+  document.querySelectorAll('input[type="number"]').forEach(input => {
+    const qty = parseInt(input.value) || 0;
+    if (qty > 0) {
+      hasItem = true;
+      cartCount += qty;
+
+      const key = getItemKey(input);
+      const name = input.dataset.name || '';
+      const subName = input.dataset.sub || '';
+      const price = parseInt(input.dataset.price) || 0;
+      const fullItemName = subName ? `${name} [${subName}]` : name;
+      const isChecked = checkedItemKeys.has(key);
+
+      const itemEl = document.createElement('div');
+      itemEl.className = `cart-check-item ${isChecked ? 'done' : ''}`;
+      itemEl.innerHTML = `
+        <input type="checkbox" class="cart-checkbox" ${isChecked ? 'checked' : ''}
+          onchange="toggleCartCheck('${key.replace(/'/g, "\\'")}', this)">
+        <div class="cart-item-info">
+          <div class="cart-item-title">${fullItemName}</div>
+          <div class="cart-item-sub">¥${price.toLocaleString()} × ${qty}個 = ¥${(price * qty).toLocaleString()}</div>
+        </div>
+      `;
+      modalBody.appendChild(itemEl);
+    }
+  });
+
+  document.getElementById('cart-count').innerText = cartCount;
+
+  if (!hasItem) {
+    modalBody.innerHTML =
+      '<div style="text-align:center; color:#888; padding:30px 0;">かごに商品が入っていません</div>';
+  }
+
+  document.getElementById('cart-modal').classList.add('open');
+}
+
+function closeCartModal() {
+  document.getElementById('cart-modal').classList.remove('open');
+}
+
+function toggleCartCheck(key, checkbox) {
+  const itemRow = checkbox.closest('.cart-check-item');
+
+  if (checkbox.checked) {
+    checkedItemKeys.add(key);
+    itemRow.classList.add('done');
+  } else {
+    checkedItemKeys.delete(key);
+    itemRow.classList.remove('done');
+  }
+
+  localStorage.setItem(
+    'brmy_showroom_checked_keys',
+    JSON.stringify(Array.from(checkedItemKeys))
+  );
 }
 
 function generateImage() {
